@@ -4,16 +4,21 @@ using namespace cv;
 class HazeRemove
 {
 private:
+	int patchRadius;
+	int globalAtmosphericLight[3];
+	static const float T0;
+public:
 	Mat srcImg;
 	Mat darkChannelImg;
 	Mat transmissionMap;
-	int patchRadius;
-	int globalAtmosphericLight[3];
-public:
+	Mat estimatedTransmissionMap;
 	HazeRemove(Mat img,int radius);
 	~HazeRemove();
 	void getDarkChannelPrior();
-	void getGlobalAtmosphericLight(bool isUseAverage=true);
+	void getTransmissionMap(bool isUseAverage=true);
+	void getEstimatedTransmissionMap(bool isUseAverage);
+	void getGlobalAtmosphericLight(bool isUseAverage);
+	void getHazeRemoveImg();
 };
 
 

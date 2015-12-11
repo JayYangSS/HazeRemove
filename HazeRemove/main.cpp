@@ -10,6 +10,15 @@ int main()
 	Mat img = imread("test.jpg");
 	HazeRemove hazeRomove(img,7);
 	hazeRomove.getDarkChannelPrior();
-	hazeRomove.getGlobalAtmosphericLight(true);
-	system("wait");
+	hazeRomove.getTransmissionMap(true);
+	hazeRomove.getEstimatedTransmissionMap(true);
+
+	imshow("src", img);
+	waitKey(5);
+	imshow("darkChanel", hazeRomove.darkChannelImg);
+	waitKey(5);
+	imshow("transmissionMap", hazeRomove.transmissionMap);
+	waitKey(5);
+	imshow("estimatedTransmissionMap", hazeRomove.estimatedTransmissionMap);
+	waitKey();
 }
