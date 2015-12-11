@@ -10,5 +10,6 @@ int main()
 	Mat img = imread("test.jpg");
 	HazeRemove hazeRomove(img,7);
 	hazeRomove.getDarkChannelPrior();
+	hazeRomove.getGlobalAtmosphericLight(true);
 	system("wait");
 }
