@@ -7,11 +7,13 @@ using namespace cv;
 
 int main()
 {
-	Mat img = imread("test.jpg");
-	HazeRemove hazeRomove(img,7);
+	const float w0 = 0.95;
+	Mat img = imread("test1.jpg");
+	HazeRemove hazeRomove(img,7,w0);
 	hazeRomove.getDarkChannelPrior();
 	hazeRomove.getTransmissionMap(true);
 	hazeRomove.getEstimatedTransmissionMap(true);
+	hazeRomove.getHazeRemoveImg();
 
 	imshow("src", img);
 	waitKey(5);
@@ -20,5 +22,7 @@ int main()
 	imshow("transmissionMap", hazeRomove.transmissionMap);
 	waitKey(5);
 	imshow("estimatedTransmissionMap", hazeRomove.estimatedTransmissionMap);
+	waitKey(5);
+	imshow("hazeRemoveImg", hazeRomove.hazeRemoveImg);
 	waitKey();
 }

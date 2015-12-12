@@ -10,12 +10,13 @@ int compareMyType(const void * a, const void * b)
 
 const float HazeRemove::T0 = 0.1;
 
-HazeRemove::HazeRemove(Mat img, int radius)
+HazeRemove::HazeRemove(Mat img, int radius, float coffecient) :w0(coffecient)
 {
 	srcImg = img;
 	darkChannelImg.create(srcImg.rows, srcImg.cols, CV_8UC1);
 	transmissionMap.create(srcImg.rows, srcImg.cols, CV_32F);
 	estimatedTransmissionMap.create(srcImg.rows, srcImg.cols, CV_32F);
+	hazeRemoveImg.create(srcImg.rows, srcImg.cols, CV_32FC3);
 	patchRadius = radius;
 	for (int i = 0; i < 3; i++)
 	{
@@ -122,77 +123,14 @@ void HazeRemove::getDarkChannelPrior()
 			{
 				uchar* darkPriorData = darkChannelImg.ptr<uchar>(patch_y);
 				for (int patch_x = rect.x; patch_x < rect.x+rect.width; patch_x++)
-				{
 					*(darkPriorData+patch_x) = (int)minimum;
-				}
 			}
 		}
 	}
 }
 
 void HazeRemove::getTransmissionMap(bool isUseAverage)
-{
-	/*
-	static float brightes_ratio = 0.001;
-	static int rows = darkChannelImg.rows;
-	static int cols = darkChannelImg.cols;
-	 
-	int brightestPixelNum = (int)(brightes_ratio*rows*cols);
-	int count = 0;
-	vector<Pixel> pixelContainer;
-	if (darkChannelImg.isContinuous())
-	{
-		cols = cols*rows;
-		rows = 1;
-	}
-	for (int i = 0; i < rows; i++)
-	{
-		uchar* srcData = darkChannelImg.ptr<uchar>(i);
-		for (int j = 0; j < cols; j++)
-		{
-			Pixel p;
-			p.posX = j;
-			p.posY = i;
-			p.val = *(srcData+j);
-			if (count < brightestPixelNum)
-			{
-				pixelContainer.push_back(p);
-				count++;
-			}
-			else{
-				qsort(&pixelContainer[0], pixelContainer.size(), sizeof(Pixel), compareMyType);
-				if (p.val>pixelContainer[brightestPixelNum-1].val)
-					pixelContainer[brightestPixelNum-1] = p;
-			}
-		}
-	}
-
-
-
-	//get the globalAtmosphericLight in each channel
-	float average[3] = { 0, 0, 0 };
-	float max[3] = { 0, 0, 0 };
-	int nChannels = srcImg.channels();
-	for (int c = 0; c < nChannels; c++)
-	{
-		int sum = 0;
-		for (int iter = 0; iter < brightestPixelNum; iter++)
-		{
-			int x = pixelContainer[iter].posX;
-			int y = pixelContainer[iter].posY;
-			uchar* fogImgData = srcImg.ptr<uchar>(y);
-			sum += *(fogImgData + nChannels*y + c);
-			if (max[c] < *(fogImgData + nChannels*y + c))
-				max[c] = *(fogImgData + nChannels*y + c);
-		}
-		average[c] = (float)sum / (float)brightestPixelNum;
-		if (isUseAverage)
-			globalAtmosphericLight[c] = average[c];
-		else
-			globalAtmosphericLight[c] = max[c];
-	}
-	*/
-	
+{	
 	getGlobalAtmosphericLight(isUseAverage);
 	const int rows = darkChannelImg.rows;
 	const int cols = darkChannelImg.cols;
@@ -209,7 +147,7 @@ void HazeRemove::getTransmissionMap(bool isUseAverage)
 			float RVal = (float)*(pdata + j*nChannels + 2);
 			float tmp = BVal / globalAtmosphericLight[0] < GVal / globalAtmosphericLight[1] ? (BVal / globalAtmosphericLight[0]) : (GVal / globalAtmosphericLight[1]);
 			float minVal = tmp < RVal / globalAtmosphericLight[2] ? tmp : (RVal / globalAtmosphericLight[2]);
-			*transmissinData++ = (1 - minVal <= T0) ? T0 : (1 - minVal);//minVal may be larger than 1
+			*transmissinData++ = (1 - w0*minVal <= T0) ? T0 : (1 -w0*minVal);//minVal may be larger than 1
 		}
 	}
 }
@@ -300,5 +238,28 @@ void HazeRemove::getEstimatedTransmissionMap(bool isUseAverage)
 
 void HazeRemove::getHazeRemoveImg()
 {
+	int rows = srcImg.rows;
+	int cols = srcImg.cols;
+	const int nchannels = srcImg.channels();
 
+	//if the image is continus, transform it into 1-dimension to make the operation faster
+	if (srcImg.isContinuous())
+	{
+		cols = cols*rows;
+		rows = 1;
+	}
+	for (int i = 0; i < rows; i++)
+	{
+		uchar* srcData = srcImg.ptr<uchar>(i);
+		float* dstData = hazeRemoveImg.ptr<float>(i);
+		float* transData = estimatedTransmissionMap.ptr<float>(i);//TODO:select the transmissionMap or estimatedTransmissionMap
+		for (int j = 0; j < cols; j++)
+		{
+			float TVal = *(transData + j);
+			for (int c = 0; c < nchannels; c++)
+			{		
+				*(dstData + nchannels*j + c) = (*(srcData + nchannels*j + c) - globalAtmosphericLight[c]) / (TVal*255.0) + globalAtmosphericLight[c]/255.0;
+			}
+		}	
+	}
 }

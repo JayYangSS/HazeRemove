@@ -6,13 +6,15 @@ class HazeRemove
 private:
 	int patchRadius;
 	int globalAtmosphericLight[3];
+	float w0;
 	static const float T0;
 public:
 	Mat srcImg;
 	Mat darkChannelImg;
 	Mat transmissionMap;
 	Mat estimatedTransmissionMap;
-	HazeRemove(Mat img,int radius);
+	Mat hazeRemoveImg;
+	HazeRemove(Mat img,int radius,float coffecient);
 	~HazeRemove();
 	void getDarkChannelPrior();
 	void getTransmissionMap(bool isUseAverage=true);
