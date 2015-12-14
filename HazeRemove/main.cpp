@@ -8,7 +8,7 @@ using namespace cv;
 int main()
 {
 	const float w0 = 0.95;
-	Mat img = imread("test1.jpg");
+	Mat img = imread("TestImg//test1.jpg");
 	HazeRemove hazeRomove(img,7,w0);
 	hazeRomove.getDarkChannelPrior();
 	hazeRomove.getTransmissionMap(true);
