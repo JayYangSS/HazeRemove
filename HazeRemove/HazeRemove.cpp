@@ -16,7 +16,6 @@ HazeRemove::HazeRemove(Mat img, int radius, float coffecient) :w0(coffecient)
 	darkChannelImg.create(srcImg.rows, srcImg.cols, CV_8UC1);
 	transmissionMap.create(srcImg.rows, srcImg.cols, CV_32F);
 	estimatedTransmissionMap.create(srcImg.rows, srcImg.cols, CV_32F);
-	//hazeRemoveImg.create(srcImg.rows, srcImg.cols, CV_32FC3);
 	patchRadius = radius;
 	for (int i = 0; i < 3; i++)
 	{
@@ -28,6 +27,60 @@ HazeRemove::HazeRemove(Mat img, int radius, float coffecient) :w0(coffecient)
 
 HazeRemove::~HazeRemove()
 {
+}
+
+/*
+*rect:得到的patch
+*rows:图像的长度
+*cols:图像的宽度
+*x:patch左上角所在的x坐标
+*y:patch左上角所在的y坐标
+*/
+void HazeRemove::getPatchPosAndSize(Rect &rect,int rows,int cols,int x,int y)
+{
+	int i = y;
+	int j = x;
+	if (j - patchRadius < 0)
+	{
+		rect.x = 0;
+		rect.width = j + patchRadius;
+		if (i - patchRadius < 0)
+		{
+			rect.y = 0;
+			rect.height = i + patchRadius;
+		}
+		else{
+			rect.y = i - patchRadius;
+			rect.height = i + patchRadius >= rows ? patchRadius + rows - i : 2 * patchRadius + 1;
+		}
+	}
+	else if (i - patchRadius <= 0)
+	{
+		rect.y = 0;
+		rect.height = i + patchRadius;
+		rect.x = j - patchRadius;
+		rect.width = j + patchRadius >= cols ? patchRadius + cols - j : 2 * patchRadius + 1;
+	}
+	else if (i + patchRadius >= rows)
+	{
+		rect.y = i - patchRadius;
+		rect.height = patchRadius + rows - i;
+		rect.x = j - patchRadius;
+		rect.width = j + patchRadius >= cols ? patchRadius + cols - j : 2 * patchRadius + 1;
+	}
+	else if (j + patchRadius >= cols)
+	{
+		rect.x = j - patchRadius;
+		rect.width = j + patchRadius >= cols ? patchRadius + cols - j : 2 * patchRadius + 1;
+		rect.y = i - patchRadius;
+		rect.height = 2 * patchRadius + 1;
+	}
+	else{
+		rect.x = j - patchRadius;
+		rect.y = i - patchRadius;
+		rect.height = 2 * patchRadius + 1;
+		rect.width = 2 * patchRadius + 1;
+	}
 }
 
 void HazeRemove::getDarkChannelPrior()
@@ -71,47 +124,7 @@ void HazeRemove::getDarkChannelPrior()
 		{
 			//set the patch size and position
 			Rect rect;
-			if (j - patchRadius < 0)
-			{
-				rect.x = 0;
-				rect.width = j + patchRadius;
-				if (i - patchRadius < 0)
-				{
-					rect.y = 0;
-					rect.height = i + patchRadius;
-				}
-				else{
-					rect.y = i - patchRadius;
-					rect.height = i + patchRadius>=rows ? patchRadius + rows - i  : 2 * patchRadius + 1;
-				}
-			}
-			else if (i - patchRadius <= 0)
-			{
-				rect.y = 0;
-				rect.height = i + patchRadius;
-				rect.x = j - patchRadius;
-				rect.width = j + patchRadius>=cols ? patchRadius + cols - j  : 2 * patchRadius + 1;
-			}
-			else if (i + patchRadius >= rows)
-			{
-				rect.y = i - patchRadius;
-				rect.height = patchRadius + rows - i ;
-				rect.x = j - patchRadius;
-				rect.width = j + patchRadius>=cols ? patchRadius + cols - j : 2 * patchRadius + 1;
-			}
-			else if (j + patchRadius >= cols)
-			{
-				rect.x = j - patchRadius;
-				rect.width = j + patchRadius>=cols ? patchRadius + cols - j  : 2 * patchRadius + 1;
-				rect.y = i - patchRadius;
-				rect.height = 2 * patchRadius + 1;
-			}
-			else{
-				rect.x = j - patchRadius;
-				rect.y = i - patchRadius;
-				rect.height = 2 * patchRadius + 1;
-				rect.width = 2 * patchRadius + 1;
-			}
+			getPatchPosAndSize(rect, rows, cols, j, i);
 
 			//find the minimum in patch
 			Mat patchImg = tmpMat(rect);
@@ -135,11 +148,14 @@ void HazeRemove::getTransmissionMap(bool isUseAverage)
 	const int rows = darkChannelImg.rows;
 	const int cols = darkChannelImg.cols;
 	const int nChannels = srcImg.channels();
+	Mat tmpMat(rows, cols, CV_32F);
+	
 	//get the transmission map
 	for (int i = 0; i < rows; i++)
 	{
 		uchar* pdata = srcImg.ptr<uchar>(i);
-		float* transmissinData = transmissionMap.ptr<float>(i);
+		//float* transmissinData = transmissionMap.ptr<float>(i);
+		float* tmpData = tmpMat.ptr<float>(i);
 		for (int j = 0; j < cols; j++)
 		{
 			float BVal = (float)*(pdata + j*nChannels);
@@ -147,7 +163,31 @@ void HazeRemove::getTransmissionMap(bool isUseAverage)
 			float RVal = (float)*(pdata + j*nChannels + 2);
 			float tmp = BVal / globalAtmosphericLight[0] < GVal / globalAtmosphericLight[1] ? (BVal / globalAtmosphericLight[0]) : (GVal / globalAtmosphericLight[1]);
 			float minVal = tmp < RVal / globalAtmosphericLight[2] ? tmp : (RVal / globalAtmosphericLight[2]);
-			*transmissinData++ = (1 - w0*minVal <= T0) ? T0 : (1 -w0*minVal);//minVal may be larger than 1
+			//*transmissinData++ = (1 - w0*minVal <= T0) ? T0 : (1 -w0*minVal);//minVal may be larger than 1
+			*tmpData++ = minVal;
+		}
+	}
+
+	//get the estimated transmission map
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < cols; j++)
+		{
+			Rect rect;
+			getPatchPosAndSize(rect, rows, cols, j, i);
+
+			//find the minimum in patch
+			Mat patchImg = tmpMat(rect);
+			double minimum = 0;
+			minMaxLoc(patchImg, &minimum);
+
+			//set the minimum to each pixel in the patch 
+			for (int patch_y = rect.y; patch_y < rect.y + rect.height; patch_y++)
+			{
+				float* transmissionData = transmissionMap.ptr<float>(patch_y);
+				for (int patch_x = rect.x; patch_x < rect.x + rect.width; patch_x++)
+					*(transmissionData + patch_x) = (1 - w0*minimum <= T0) ? T0 : (1 - w0*minimum);//minVal may be larger than 1;
+			}
 		}
 	}
 }
@@ -200,13 +240,20 @@ void HazeRemove::getGlobalAtmosphericLight(bool isUseAverage)
 			int x = pixelContainer[iter].posX;
 			int y = pixelContainer[iter].posY;
 			uchar* fogImgData = srcImg.ptr<uchar>(y);
-			sum += *(fogImgData + nChannels*y + c);
-			if (max[c] < *(fogImgData + nChannels*y + c))
-				max[c] = *(fogImgData + nChannels*y + c);
+			if (isUseAverage)
+			{
+				sum += *(fogImgData + nChannels*y + c);
+			}
+			else{
+				if (max[c] < *(fogImgData + nChannels*y + c))
+					max[c] = *(fogImgData + nChannels*y + c);
+			}
 		}
-		average[c] = (float)sum / (float)brightestPixelNum;
 		if (isUseAverage)
+		{
+			average[c] = (float)sum / (float)brightestPixelNum;
 			globalAtmosphericLight[c] = average[c];
+		}
 		else
 			globalAtmosphericLight[c] = max[c];
 	}
